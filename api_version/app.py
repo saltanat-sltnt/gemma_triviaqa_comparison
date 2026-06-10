@@ -25,7 +25,7 @@ MODEL_NAME = "google/gemma-2-2b"
 DATASET_PATH = "mandarjoshi/trivia_qa"
 DATASET_NAME = "rc.nocontext"
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "../results/api"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
