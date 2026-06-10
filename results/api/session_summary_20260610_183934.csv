@@ -1,0 +1,13 @@
+metric,value
+session_id,20260610_183934
+start_time,2026-06-10 18:39:34
+end_time,2026-06-10 18:41:06
+comment,API cloud ordered 100 from index 234 on RTX 3090
+total_questions,100
+correct_answers,53
+accuracy,0.53
+total_elapsed_time_seconds,91.5771
+avg_time_per_question_seconds,0.9158
+avg_gpu_memory_used_mb,5341.49
+gpu_memory_total_mb,24576.0
+total_energy_joules_estimate,19301.5803
