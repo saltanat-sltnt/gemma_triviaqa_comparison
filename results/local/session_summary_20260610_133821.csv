@@ -1,0 +1,13 @@
+metric,value
+session_id,20260610_133821
+start_time,2026-06-10 13:38:29
+end_time,2026-06-10 13:39:46
+comment,Local GPU ordered 100 from index 234 on RTX 5090
+total_questions,100
+correct_answers,53
+accuracy,0.53
+total_elapsed_time_seconds,76.796
+avg_time_per_question_seconds,0.768
+avg_gpu_memory_used_mb,6693.52
+gpu_memory_total_mb,32607.0
+total_energy_joules_estimate,13173.6273
