@@ -1,0 +1,13 @@
+metric,value
+session_id,20260610_182818
+start_time,2026-06-10 18:28:18
+end_time,2026-06-10 18:29:50
+comment,API cloud random 100 seed 43 on RTX 3090
+total_questions,100
+correct_answers,60
+accuracy,0.6
+total_elapsed_time_seconds,91.6972
+avg_time_per_question_seconds,0.917
+avg_gpu_memory_used_mb,5341.66
+gpu_memory_total_mb,24576.0
+total_energy_joules_estimate,19385.1768
