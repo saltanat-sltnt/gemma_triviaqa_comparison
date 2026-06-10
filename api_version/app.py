@@ -299,7 +299,10 @@ def save_results(
     responses_df = pd.DataFrame(responses, columns=RESPONSES_COLUMNS)
     responses_df.to_csv(responses_path, index=False)
 
-    summary_df = pd.DataFrame([summary], columns=SUMMARY_COLUMNS)
+    summary_df = pd.DataFrame(
+        list(summary.items()),
+        columns=["metric", "value"]
+    )
     summary_df.to_csv(summary_path, index=False)
 
     return {
