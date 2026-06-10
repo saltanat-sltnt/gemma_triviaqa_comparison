@@ -1,0 +1,13 @@
+metric,value
+session_id,20260610_132831
+start_time,2026-06-10 13:28:39
+end_time,2026-06-10 13:29:56
+comment,Local GPU random 100 seed 43 on RTX 5090
+total_questions,100
+correct_answers,60
+accuracy,0.6
+total_elapsed_time_seconds,77.1941
+avg_time_per_question_seconds,0.7719
+avg_gpu_memory_used_mb,6610.7
+gpu_memory_total_mb,32607.0
+total_energy_joules_estimate,13221.1404
