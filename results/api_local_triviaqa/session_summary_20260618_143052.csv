@@ -1,0 +1,15 @@
+metric,value
+total_questions,3.0
+correct_answers,1.0
+accuracy,0.3333
+client_api_total_time,4.7746
+send_request_time,0.0
+network_latency,2.2519
+cloud_total_time,2.5207
+receive_response_time,0.0019
+processing_non_inference_time,0.1177
+inference_time,2.4031
+gpu_memory_used_mb,5620.0
+gpu_memory_total_mb,32607.0
+gpu_power_watts,117.55
+energy_joules_estimate,262.6453
