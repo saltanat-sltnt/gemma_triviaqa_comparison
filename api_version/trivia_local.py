@@ -138,7 +138,6 @@ class QuestionRequest(BaseModel):
 
 @app.middleware("http")
 async def add_cloud_start_time(request: Request, call_next):
-    # Starts when the request enters FastAPI server.
     request.state.cloud_start_time = time.perf_counter()
     response = await call_next(request)
     return response
@@ -233,13 +232,10 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
     if MODEL is None or TOKENIZER is None:
         load_gemma_model()
 
-    # Server total starts from middleware.
     cloud_start_time = request.state.cloud_start_time
 
-    # --------------------------------------------------------
-    # Non-inference processing part 1:
+    # processing_non_inference_time part 1:
     # receive request + prepare prompt + tokenize
-    # --------------------------------------------------------
     prompt_tokenize_start = time.perf_counter()
 
     prompt = f"Question: {request_data.question}\nAnswer:"
@@ -247,10 +243,8 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
 
     prompt_tokenize_end = time.perf_counter()
 
-    # --------------------------------------------------------
-    # Inference time only:
-    # Gemma model.generate()
-    # --------------------------------------------------------
+    # inference_time:
+    # Gemma generates answer
     if TORCH.cuda.is_available():
         TORCH.cuda.synchronize()
 
@@ -270,10 +264,8 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
 
     inference_end = time.perf_counter()
 
-    # --------------------------------------------------------
-    # Non-inference processing part 2:
+    # processing_non_inference_time part 2:
     # decode + format answer + read GPU stats
-    # --------------------------------------------------------
     decode_format_start = time.perf_counter()
 
     generated_text = TOKENIZER.decode(outputs[0], skip_special_tokens=True)
@@ -283,18 +275,10 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
 
     decode_format_end = time.perf_counter()
 
-    # --------------------------------------------------------
-    # Time calculations
-    # --------------------------------------------------------
     inference_time = inference_end - inference_start
     cloud_total_time = decode_format_end - cloud_start_time
     processing_non_inference_time = cloud_total_time - inference_time
 
-    prompt_tokenize_time = prompt_tokenize_end - prompt_tokenize_start
-    decode_format_time = decode_format_end - decode_format_start
-
-    # Energy estimate:
-    # GPU energy is estimated only for model generation time.
     energy_joules = None
     if gpu_stats["gpu_power_watts"] is not None:
         energy_joules = inference_time * gpu_stats["gpu_power_watts"]
@@ -302,12 +286,9 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
     return {
         "model_answer": model_answer,
 
-        "cloud_total_time_seconds": cloud_total_time,
-        "processing_non_inference_time_seconds": processing_non_inference_time,
-        "inference_time_seconds": inference_time,
-
-        "prompt_tokenize_time_seconds": prompt_tokenize_time,
-        "decode_format_time_seconds": decode_format_time,
+        "cloud_total_time": cloud_total_time,
+        "processing_non_inference_time": processing_non_inference_time,
+        "inference_time": inference_time,
 
         "gpu_memory_used_mb": gpu_stats["gpu_memory_used_mb"],
         "gpu_memory_total_mb": gpu_stats["gpu_memory_total_mb"],
@@ -322,26 +303,21 @@ def ask_gemma(request_data: QuestionRequest, request: Request):
 # ============================================================
 
 RESPONSES_COLUMNS = [
-    "session_id",
     "question_number_in_session",
     "question_index_in_dataset",
-    "mode",
-    "seed",
-    "start_index",
-    "api_url",
     "question",
     "model_answer",
     "ground_truth_aliases",
     "is_correct",
 
-    "client_api_total_time_seconds",
-    "network_overhead_time_seconds",
+    "client_api_total_time",
+    "send_request_time",
+    "network_latency",
+    "cloud_total_time",
+    "receive_response_time",
 
-    "cloud_total_time_seconds",
-    "processing_non_inference_time_seconds",
-    "inference_time_seconds",
-    "prompt_tokenize_time_seconds",
-    "decode_format_time_seconds",
+    "processing_non_inference_time",
+    "inference_time",
 
     "gpu_memory_used_mb",
     "gpu_memory_total_mb",
@@ -379,7 +355,6 @@ def run_client_session(
     mode: str,
     start_index: int,
     seed: int,
-    comment: str,
 ):
     session_id = create_session_id()
 
@@ -395,7 +370,6 @@ def run_client_session(
         seed=seed,
     )
 
-    start_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     responses = []
 
     for question_number, question_index in enumerate(question_indices, start=1):
@@ -405,64 +379,100 @@ def run_client_session(
         aliases = item["answer"]["aliases"]
 
         # ----------------------------------------------------
-        # Local/client API total time:
+        # client_api_total_time:
         # time after response - time before request
-        #
-        # Includes:
-        # send request + network latency + cloud_total_time + receive response
         # ----------------------------------------------------
-        client_request_start = time.perf_counter()
+        client_total_start = time.perf_counter()
 
+        # ----------------------------------------------------
+        # send_request_time:
+        # local request payload preparation time
+        # ----------------------------------------------------
+        send_request_start = time.perf_counter()
+
+        request_payload = json.dumps(
+            {"question": question},
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        send_request_end = time.perf_counter()
+
+        send_request_time = send_request_end - send_request_start
+
+        # ----------------------------------------------------
+        # Send request to cloud API.
+        # stream=True lets us measure response-body receive time separately.
+        # ----------------------------------------------------
         response = requests.post(
             api_url,
-            json={"question": question},
+            data=request_payload,
+            headers={"Content-Type": "application/json"},
             timeout=300,
+            stream=True,
         )
 
-        client_response_end = time.perf_counter()
+        response_headers_received = time.perf_counter()
 
         response.raise_for_status()
-        cloud_result = response.json()
 
-        client_api_total_time = client_response_end - client_request_start
+        # ----------------------------------------------------
+        # receive_response_time:
+        # receive response body + parse JSON
+        # ----------------------------------------------------
+        receive_response_start = time.perf_counter()
 
-        cloud_total_time = cloud_result["cloud_total_time_seconds"]
-        network_overhead_time = client_api_total_time - cloud_total_time
+        response_body = response.content
+        cloud_result = json.loads(response_body.decode("utf-8"))
+
+        receive_response_end = time.perf_counter()
+
+        receive_response_time = receive_response_end - receive_response_start
+
+        client_total_end = receive_response_end
+
+        client_api_total_time = client_total_end - client_total_start
+
+        cloud_total_time = cloud_result["cloud_total_time"]
+
+        # ----------------------------------------------------
+        # network_latency:
+        # residual part from the local formula:
+        #
+        # client_api_total_time =
+        # send_request_time + network_latency
+        # + cloud_total_time + receive_response_time
+        # ----------------------------------------------------
+        network_latency = (
+            client_api_total_time
+            - send_request_time
+            - cloud_total_time
+            - receive_response_time
+        )
+
+        if network_latency < 0:
+            network_latency = 0
 
         model_answer = cloud_result["model_answer"]
         is_correct = is_correct_answer(model_answer, aliases)
 
         row = {
-            "session_id": session_id,
             "question_number_in_session": question_number,
             "question_index_in_dataset": question_index,
-            "mode": mode,
-            "seed": seed if mode == "random" else None,
-            "start_index": start_index if mode == "ordered" else None,
-            "api_url": api_url,
             "question": question,
             "model_answer": model_answer,
             "ground_truth_aliases": json.dumps(aliases, ensure_ascii=False),
             "is_correct": is_correct,
 
-            "client_api_total_time_seconds": round_or_none(client_api_total_time),
-            "network_overhead_time_seconds": round_or_none(network_overhead_time),
+            "client_api_total_time": round_or_none(client_api_total_time),
+            "send_request_time": round_or_none(send_request_time),
+            "network_latency": round_or_none(network_latency),
+            "cloud_total_time": round_or_none(cloud_total_time),
+            "receive_response_time": round_or_none(receive_response_time),
 
-            "cloud_total_time_seconds": round_or_none(
-                cloud_result["cloud_total_time_seconds"]
+            "processing_non_inference_time": round_or_none(
+                cloud_result["processing_non_inference_time"]
             ),
-            "processing_non_inference_time_seconds": round_or_none(
-                cloud_result["processing_non_inference_time_seconds"]
-            ),
-            "inference_time_seconds": round_or_none(
-                cloud_result["inference_time_seconds"]
-            ),
-            "prompt_tokenize_time_seconds": round_or_none(
-                cloud_result["prompt_tokenize_time_seconds"]
-            ),
-            "decode_format_time_seconds": round_or_none(
-                cloud_result["decode_format_time_seconds"]
-            ),
+            "inference_time": round_or_none(cloud_result["inference_time"]),
 
             "gpu_memory_used_mb": cloud_result["gpu_memory_used_mb"],
             "gpu_memory_total_mb": cloud_result["gpu_memory_total_mb"],
@@ -475,30 +485,31 @@ def run_client_session(
         responses.append(row)
 
         print(
-            f"Session {session_id}: "
-            f"{question_number}/{len(question_indices)} done | "
+            f"{question_number}/{len(question_indices)} | "
             f"correct={is_correct} | "
-            f"client_api_total={row['client_api_total_time_seconds']}s | "
-            f"network_overhead={row['network_overhead_time_seconds']}s | "
-            f"cloud_total={row['cloud_total_time_seconds']}s | "
-            f"processing_non_inference="
-            f"{row['processing_non_inference_time_seconds']}s | "
-            f"inference={row['inference_time_seconds']}s | "
-            f"power={row['gpu_power_watts']}W"
+            f"client_api_total_time={row['client_api_total_time']} | "
+            f"send_request_time={row['send_request_time']} | "
+            f"network_latency={row['network_latency']} | "
+            f"cloud_total_time={row['cloud_total_time']} | "
+            f"receive_response_time={row['receive_response_time']} | "
+            f"processing_non_inference_time={row['processing_non_inference_time']} | "
+            f"inference_time={row['inference_time']} | "
+            f"gpu_power_watts={row['gpu_power_watts']}"
         )
-
-    end_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     total_questions = len(responses)
     correct_answers = sum(1 for row in responses if row["is_correct"])
     accuracy = correct_answers / total_questions if total_questions > 0 else None
 
-    def sum_column(column_name: str) -> float:
-        return sum(
+    def sum_column(column_name: str) -> Optional[float]:
+        values = [
             row[column_name]
             for row in responses
             if row[column_name] is not None
-        )
+        ]
+        if not values:
+            return None
+        return sum(values)
 
     def avg_column(column_name: str) -> Optional[float]:
         values = [
@@ -506,10 +517,8 @@ def run_client_session(
             for row in responses
             if row[column_name] is not None
         ]
-
         if not values:
             return None
-
         return sum(values) / len(values)
 
     gpu_memory_total_values = [
@@ -525,61 +534,43 @@ def run_client_session(
     )
 
     summary = {
-        "session_id": session_id,
-        "start_time": start_time_str,
-        "end_time": end_time_str,
-        "comment": comment,
-        "api_url": api_url,
-
         "total_questions": total_questions,
         "correct_answers": correct_answers,
         "accuracy": round_or_none(accuracy),
 
-        "total_client_api_time_seconds": round_or_none(
-            sum_column("client_api_total_time_seconds")
+        "client_api_total_time": round_or_none(
+            sum_column("client_api_total_time")
         ),
-        "avg_client_api_total_time_seconds": round_or_none(
-            avg_column("client_api_total_time_seconds")
+        "send_request_time": round_or_none(
+            sum_column("send_request_time")
         ),
-
-        "total_network_overhead_time_seconds": round_or_none(
-            sum_column("network_overhead_time_seconds")
+        "network_latency": round_or_none(
+            sum_column("network_latency")
         ),
-        "avg_network_overhead_time_seconds": round_or_none(
-            avg_column("network_overhead_time_seconds")
+        "cloud_total_time": round_or_none(
+            sum_column("cloud_total_time")
         ),
-
-        "total_cloud_time_seconds": round_or_none(
-            sum_column("cloud_total_time_seconds")
-        ),
-        "avg_cloud_total_time_seconds": round_or_none(
-            avg_column("cloud_total_time_seconds")
+        "receive_response_time": round_or_none(
+            sum_column("receive_response_time")
         ),
 
-        "total_processing_non_inference_time_seconds": round_or_none(
-            sum_column("processing_non_inference_time_seconds")
+        "processing_non_inference_time": round_or_none(
+            sum_column("processing_non_inference_time")
         ),
-        "avg_processing_non_inference_time_seconds": round_or_none(
-            avg_column("processing_non_inference_time_seconds")
-        ),
-
-        "total_inference_time_seconds": round_or_none(
-            sum_column("inference_time_seconds")
-        ),
-        "avg_inference_time_seconds": round_or_none(
-            avg_column("inference_time_seconds")
+        "inference_time": round_or_none(
+            sum_column("inference_time")
         ),
 
-        "avg_gpu_memory_used_mb": round_or_none(
+        "gpu_memory_used_mb": round_or_none(
             avg_column("gpu_memory_used_mb"),
             2,
         ),
         "gpu_memory_total_mb": gpu_memory_total,
-        "avg_gpu_power_watts": round_or_none(
+        "gpu_power_watts": round_or_none(
             avg_column("gpu_power_watts"),
             2,
         ),
-        "total_energy_joules_estimate": round_or_none(
+        "energy_joules_estimate": round_or_none(
             sum_column("energy_joules_estimate")
         ),
     }
@@ -635,11 +626,6 @@ def parse_args():
     )
     parser.add_argument("--start_index", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument(
-        "--comment",
-        type=str,
-        default="Cloud Gemma API with local TriviaQA",
-    )
 
     return parser.parse_args()
 
@@ -663,5 +649,4 @@ if __name__ == "__main__":
             mode=args.mode,
             start_index=args.start_index,
             seed=args.seed,
-            comment=args.comment,
         )
