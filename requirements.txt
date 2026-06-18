@@ -6,3 +6,4 @@ accelerate
 torch
 pandas
 huggingface_hub
+requests
