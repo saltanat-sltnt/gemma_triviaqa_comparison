@@ -1,0 +1,7 @@
+Questions,Seed,Send request / client total (%),Network latency / client total (%),Receive response / client total (%),Processing / cloud total (%),Inference / cloud total (%),Communication / API total (%),Computation / API total (%)
+10,42,0.0,99.95,0.04,5.1,94.9,56.01,43.99
+10,43,0.0,99.96,0.04,5.08,94.92,57.77,42.23
+10,44,0.0,99.95,0.05,4.97,95.03,55.36,44.64
+10,45,0.0,99.96,0.04,5.07,94.93,55.6,44.4
+10,46,0.0,99.95,0.05,5.05,94.95,52.07,47.93
+Average,-,0.0,99.95,0.04,5.05,94.95,55.36,44.64
