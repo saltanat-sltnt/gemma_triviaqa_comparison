@@ -1,0 +1,6 @@
+session_id,num_questions,mode,seed,start_index,client_total_time_percent,send_request_time_percent,network_latency_percent,receive_response_time_percent,cloud_total_time_percent,processing_non_inference_time_percent,inference_time_percent,api_total_time_percent,communication_time_percent,computation_time_percent
+20260624_223136,10,random,42,,100.0,0.0,99.95,0.04,100.0,5.1,94.9,100.0,56.01,43.99
+20260624_223149,10,random,43,,100.0,0.0,99.96,0.04,100.0,5.08,94.92,100.0,57.77,42.23
+20260624_223202,10,random,44,,100.0,0.0,99.95,0.05,100.0,4.97,95.03,100.0,55.36,44.64
+20260624_223215,10,random,45,,100.0,0.0,99.96,0.04,100.0,5.07,94.93,100.0,55.6,44.4
+20260624_223227,10,random,46,,100.0,0.0,99.95,0.05,100.0,5.05,94.95,100.0,52.07,47.93

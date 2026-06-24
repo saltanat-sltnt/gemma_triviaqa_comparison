@@ -1,0 +1,6 @@
+session_id,num_questions,mode,seed,start_index,correct_answers,accuracy,send_request_time,network_latency,receive_response_time,client_total_time,processing_non_inference_time,inference_time,cloud_total_time,communication_time,computation_time,api_total_time,gpu_memory_used_mb,gpu_memory_total_mb,gpu_power_watts,energy_joules_estimate
+20260624_223136,10,random,42,,6,0.6,0.0,7.0698,0.0029,7.0731,0.2834,5.2727,5.5562,7.0731,5.5562,12.6293,5620.4,32607.0,108.36,571.3512
+20260624_223149,10,random,43,,6,0.6,0.0,7.5652,0.0029,7.5685,0.281,5.2507,5.5316,7.5685,5.5316,13.1001,5622.0,32607.0,114.35,600.2995
+20260624_223202,10,random,44,,4,0.4,0.0002,6.8798,0.0031,6.8833,0.2757,5.2744,5.5501,6.8833,5.5501,12.4334,5622.0,32607.0,112.58,593.6813
+20260624_223215,10,random,45,,5,0.5,0.0,6.9363,0.0027,6.9394,0.2809,5.2616,5.5426,6.9394,5.5426,12.482,5622.0,32607.0,117.67,619.1755
+20260624_223227,10,random,46,,8,0.8,0.0,6.0382,0.0029,6.041,0.2807,5.2804,5.5612,6.041,5.5612,11.6022,5622.0,32607.0,121.01,638.824
