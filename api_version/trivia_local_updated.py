@@ -358,19 +358,68 @@ RESPONSES_COLUMNS = [
     "ground_truth_aliases",
     "is_correct",
 
-    "client_api_total_time",
     "send_request_time",
     "network_latency",
-    "cloud_total_time",
     "receive_response_time",
+    "client_total_time",
 
     "processing_non_inference_time",
     "inference_time",
+    "cloud_total_time",
+
+    "communication_time",
+    "computation_time",
+    "api_total_time",
 
     "gpu_memory_used_mb",
     "gpu_memory_total_mb",
     "gpu_power_watts",
     "energy_joules_estimate",
+]
+
+SUMMARY_COLUMNS = [
+    "session_id",
+    "num_questions",
+    "mode",
+    "seed",
+    "start_index",
+    "correct_answers",
+    "accuracy",
+    "send_request_time",
+    "network_latency",
+    "receive_response_time",
+    "client_total_time",
+    "processing_non_inference_time",
+    "inference_time",
+    "cloud_total_time",
+    "communication_time",
+    "computation_time",
+    "api_total_time",
+    "gpu_memory_used_mb",
+    "gpu_memory_total_mb",
+    "gpu_power_watts",
+    "energy_joules_estimate",
+]
+
+PERCENT_COLUMNS = [
+    "session_id",
+    "num_questions",
+    "mode",
+    "seed",
+    "start_index",
+
+    "client_total_time_percent",
+    "send_request_time_percent",
+    "network_latency_percent",
+    "receive_response_time_percent",
+
+    "cloud_total_time_percent",
+    "processing_non_inference_time_percent",
+    "inference_time_percent",
+
+    "api_total_time_percent",
+    "communication_time_percent",
+    "computation_time_percent",
 ]
 
 
@@ -385,8 +434,10 @@ def save_session_results(
     responses_df = pd.DataFrame(responses, columns=RESPONSES_COLUMNS)
     responses_df.to_csv(responses_path, index=False)
 
+    ordered_summary = {column: summary.get(
+        column) for column in SUMMARY_COLUMNS}
     summary_df = pd.DataFrame(
-        list(summary.items()),
+        list(ordered_summary.items()),
         columns=["metric", "value"],
     )
     summary_df.to_csv(summary_path, index=False)
@@ -410,7 +461,8 @@ def run_single_client_session(
     print("\n" + "=" * 80)
     print(f"Starting session {session_id}")
     print(
-        f"num_questions={num_questions}, mode={mode}, seed={seed}, start_index={start_index}")
+        f"num_questions={num_questions}, mode={mode}, seed={seed}, start_index={start_index}"
+    )
     print("=" * 80)
 
     question_indices = get_question_indices(
@@ -430,10 +482,14 @@ def run_single_client_session(
         aliases = item["answer"]["aliases"]
 
         # ----------------------------------------------------
-        # client_api_total_time:
-        # time after response - time before request
+        # api_total_time:
+        # full local-observed API request time
+        #
+        # api_total_time = communication_time + computation_time
+        # communication_time = client_total_time
+        # computation_time = cloud_total_time
         # ----------------------------------------------------
-        client_total_start = time.perf_counter()
+        api_total_start = time.perf_counter()
 
         # ----------------------------------------------------
         # send_request_time:
@@ -475,21 +531,22 @@ def run_single_client_session(
         receive_response_end = time.perf_counter()
         receive_response_time = receive_response_end - receive_response_start
 
-        client_total_end = receive_response_end
-        client_api_total_time = client_total_end - client_total_start
+        api_total_end = receive_response_end
+        api_total_time = api_total_end - api_total_start
 
         cloud_total_time = cloud_result["cloud_total_time"]
+        processing_non_inference_time = cloud_result["processing_non_inference_time"]
+        inference_time = cloud_result["inference_time"]
 
         # ----------------------------------------------------
         # network_latency:
         # residual part from:
         #
-        # client_api_total_time =
-        # send_request_time + network_latency
-        # + cloud_total_time + receive_response_time
+        # api_total_time = send_request_time + network_latency
+        #                + cloud_total_time + receive_response_time
         # ----------------------------------------------------
         network_latency = (
-            client_api_total_time
+            api_total_time
             - send_request_time
             - cloud_total_time
             - receive_response_time
@@ -497,6 +554,19 @@ def run_single_client_session(
 
         if network_latency < 0:
             network_latency = 0
+
+        # ----------------------------------------------------
+        # User-defined timing groups:
+        #
+        # client_total_time = send_request_time + network_latency + receive_response_time
+        # cloud_total_time = processing_non_inference_time + inference_time
+        # communication_time = client_total_time
+        # computation_time = cloud_total_time
+        # api_total_time = communication_time + computation_time
+        # ----------------------------------------------------
+        client_total_time = send_request_time + network_latency + receive_response_time
+        communication_time = client_total_time
+        computation_time = cloud_total_time
 
         model_answer = cloud_result["model_answer"]
         is_correct = is_correct_answer(model_answer, aliases)
@@ -515,16 +585,18 @@ def run_single_client_session(
             "ground_truth_aliases": json.dumps(aliases, ensure_ascii=False),
             "is_correct": is_correct,
 
-            "client_api_total_time": round_or_none(client_api_total_time),
             "send_request_time": round_or_none(send_request_time),
             "network_latency": round_or_none(network_latency),
-            "cloud_total_time": round_or_none(cloud_total_time),
             "receive_response_time": round_or_none(receive_response_time),
+            "client_total_time": round_or_none(client_total_time),
 
-            "processing_non_inference_time": round_or_none(
-                cloud_result["processing_non_inference_time"]
-            ),
-            "inference_time": round_or_none(cloud_result["inference_time"]),
+            "processing_non_inference_time": round_or_none(processing_non_inference_time),
+            "inference_time": round_or_none(inference_time),
+            "cloud_total_time": round_or_none(cloud_total_time),
+
+            "communication_time": round_or_none(communication_time),
+            "computation_time": round_or_none(computation_time),
+            "api_total_time": round_or_none(api_total_time),
 
             "gpu_memory_used_mb": cloud_result["gpu_memory_used_mb"],
             "gpu_memory_total_mb": cloud_result["gpu_memory_total_mb"],
@@ -539,10 +611,11 @@ def run_single_client_session(
         print(
             f"{question_number}/{len(question_indices)} | "
             f"correct={is_correct} | "
-            f"client_api_total_time={row['client_api_total_time']} | "
+            f"api_total_time={row['api_total_time']} | "
+            f"client_total_time={row['client_total_time']} | "
+            f"cloud_total_time={row['cloud_total_time']} | "
             f"send_request_time={row['send_request_time']} | "
             f"network_latency={row['network_latency']} | "
-            f"cloud_total_time={row['cloud_total_time']} | "
             f"receive_response_time={row['receive_response_time']} | "
             f"processing_non_inference_time={row['processing_non_inference_time']} | "
             f"inference_time={row['inference_time']} | "
@@ -573,22 +646,21 @@ def run_single_client_session(
             return None
         return sum(values) / len(values)
 
-    client_api_total_time = sum_column("client_api_total_time")
     send_request_time = sum_column("send_request_time")
     network_latency = sum_column("network_latency")
-    cloud_total_time = sum_column("cloud_total_time")
     receive_response_time = sum_column("receive_response_time")
+    client_total_time = sum_column("client_total_time")
 
-    communication_time = None
-    if (
-        send_request_time is not None
-        and network_latency is not None
-        and receive_response_time is not None
-    ):
-        communication_time = send_request_time + \
-            network_latency + receive_response_time
+    processing_non_inference_time = sum_column("processing_non_inference_time")
+    inference_time = sum_column("inference_time")
+    cloud_total_time = sum_column("cloud_total_time")
 
+    communication_time = client_total_time
     computation_time = cloud_total_time
+
+    api_total_time = None
+    if communication_time is not None and computation_time is not None:
+        api_total_time = communication_time + computation_time
 
     gpu_memory_total_values = [
         row["gpu_memory_total_mb"]
@@ -612,47 +684,18 @@ def run_single_client_session(
         "correct_answers": correct_answers,
         "accuracy": round_or_none(accuracy),
 
-        "client_api_total_time": round_or_none(client_api_total_time),
         "send_request_time": round_or_none(send_request_time),
         "network_latency": round_or_none(network_latency),
-        "cloud_total_time": round_or_none(cloud_total_time),
         "receive_response_time": round_or_none(receive_response_time),
+        "client_total_time": round_or_none(client_total_time),
 
-        "processing_non_inference_time": round_or_none(
-            sum_column("processing_non_inference_time")
-        ),
-        "inference_time": round_or_none(
-            sum_column("inference_time")
-        ),
+        "processing_non_inference_time": round_or_none(processing_non_inference_time),
+        "inference_time": round_or_none(inference_time),
+        "cloud_total_time": round_or_none(cloud_total_time),
 
         "communication_time": round_or_none(communication_time),
         "computation_time": round_or_none(computation_time),
-
-        "client_api_total_time_percent": 100.0,
-        "send_request_time_percent": percent_or_none(
-            send_request_time,
-            client_api_total_time,
-        ),
-        "network_latency_percent": percent_or_none(
-            network_latency,
-            client_api_total_time,
-        ),
-        "cloud_total_time_percent": percent_or_none(
-            cloud_total_time,
-            client_api_total_time,
-        ),
-        "receive_response_time_percent": percent_or_none(
-            receive_response_time,
-            client_api_total_time,
-        ),
-        "communication_time_percent": percent_or_none(
-            communication_time,
-            client_api_total_time,
-        ),
-        "computation_time_percent": percent_or_none(
-            computation_time,
-            client_api_total_time,
-        ),
+        "api_total_time": round_or_none(api_total_time),
 
         "gpu_memory_used_mb": round_or_none(
             avg_column("gpu_memory_used_mb"),
@@ -683,6 +726,54 @@ def run_single_client_session(
     return summary
 
 
+def build_percent_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    client_total_time = summary.get("client_total_time")
+    cloud_total_time = summary.get("cloud_total_time")
+    api_total_time = summary.get("api_total_time")
+
+    return {
+        "session_id": summary.get("session_id"),
+        "num_questions": summary.get("num_questions"),
+        "mode": summary.get("mode"),
+        "seed": summary.get("seed"),
+        "start_index": summary.get("start_index"),
+
+        "client_total_time_percent": 100.0 if client_total_time else None,
+        "send_request_time_percent": percent_or_none(
+            summary.get("send_request_time"),
+            client_total_time,
+        ),
+        "network_latency_percent": percent_or_none(
+            summary.get("network_latency"),
+            client_total_time,
+        ),
+        "receive_response_time_percent": percent_or_none(
+            summary.get("receive_response_time"),
+            client_total_time,
+        ),
+
+        "cloud_total_time_percent": 100.0 if cloud_total_time else None,
+        "processing_non_inference_time_percent": percent_or_none(
+            summary.get("processing_non_inference_time"),
+            cloud_total_time,
+        ),
+        "inference_time_percent": percent_or_none(
+            summary.get("inference_time"),
+            cloud_total_time,
+        ),
+
+        "api_total_time_percent": 100.0 if api_total_time else None,
+        "communication_time_percent": percent_or_none(
+            summary.get("communication_time"),
+            api_total_time,
+        ),
+        "computation_time_percent": percent_or_none(
+            summary.get("computation_time"),
+            api_total_time,
+        ),
+    }
+
+
 def run_client_batch(
     api_url: str,
     session_configs: List[Tuple[int, int]],
@@ -696,6 +787,7 @@ def run_client_batch(
     print(f"TriviaQA size: {len(dataset)}")
 
     all_summaries = []
+    all_percent_summaries = []
 
     for num_questions, seed in session_configs:
         summary = run_single_client_session(
@@ -707,15 +799,24 @@ def run_client_batch(
             seed=seed,
         )
         all_summaries.append(summary)
+        all_percent_summaries.append(build_percent_summary(summary))
 
     combined_summary_path = RESULTS_DIR / \
         f"combined_session_summary_{batch_id}.csv"
-    combined_df = pd.DataFrame(all_summaries)
+    combined_df = pd.DataFrame(all_summaries, columns=SUMMARY_COLUMNS)
     combined_df.to_csv(combined_summary_path, index=False)
+
+    combined_percent_summary_path = RESULTS_DIR / \
+        f"combined_percent_summary_{batch_id}.csv"
+    combined_percent_df = pd.DataFrame(
+        all_percent_summaries, columns=PERCENT_COLUMNS)
+    combined_percent_df.to_csv(combined_percent_summary_path, index=False)
 
     print("\n" + "=" * 80)
     print("All sessions completed.")
     print(f"Combined summary saved to: {combined_summary_path}")
+    print(
+        f"Combined percent summary saved to: {combined_percent_summary_path}")
     print("=" * 80)
 
 
