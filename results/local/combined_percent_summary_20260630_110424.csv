@@ -1,0 +1,6 @@
+session_id,num_questions,mode,seed,start_index,local_total_percent,processing_percent,inference_percent
+20260630_110447,10,ordered,,0,100.0,4.21,95.79
+20260630_110456,25,ordered,,0,100.0,4.34,95.66
+20260630_110518,50,ordered,,0,100.0,4.33,95.67
+20260630_110601,75,ordered,,0,100.0,4.35,95.65
+20260630_110707,100,ordered,,0,100.0,4.45,95.55

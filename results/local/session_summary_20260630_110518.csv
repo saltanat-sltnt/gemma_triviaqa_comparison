@@ -1,0 +1,15 @@
+metric,value
+session_id,20260630_110518
+num_questions,50
+mode,ordered
+seed,
+start_index,0
+correct_answers,21
+accuracy,0.42
+processing_time,1.8871
+inference_time,41.6755
+local_total_time,43.5627
+gpu_memory_used_mb,7507.58
+gpu_memory_total_mb,32607.0
+gpu_power_watts,170.37
+energy_joules_estimate,7100.1051
