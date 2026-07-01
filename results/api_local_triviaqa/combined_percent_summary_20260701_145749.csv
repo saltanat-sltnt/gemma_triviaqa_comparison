@@ -1,0 +1,6 @@
+session_id,num_questions,mode,seed,start_index,client_total_time_percent,send_request_time_percent,network_latency_percent,receive_response_time_percent,cloud_total_time_percent,processing_non_inference_time_percent,inference_time_percent,api_total_time_percent,communication_time_percent,computation_time_percent
+20260701_145753,100,random,42,,100.0,0.0,98.04,1.96,100.0,5.22,94.78,100.0,71.12,28.88
+20260701_145933,100,random,43,,100.0,0.0,99.22,0.77,100.0,5.25,94.75,100.0,69.89,30.11
+20260701_150109,100,random,44,,100.0,0.0,96.7,3.3,100.0,5.25,94.75,100.0,71.56,28.44
+20260701_150250,100,random,45,,100.0,0.0,97.95,2.05,100.0,5.24,94.76,100.0,74.96,25.04
+20260701_150445,100,random,46,,100.0,0.0,98.7,1.3,100.0,5.27,94.73,100.0,73.57,26.43
