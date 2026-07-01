@@ -1,0 +1,6 @@
+session_id,num_questions,mode,seed,start_index,local_total_percent,processing_percent,inference_percent
+20260630_113909,100,random,42,,100.0,4.51,95.49
+20260630_114035,100,random,43,,100.0,4.53,95.47
+20260630_114201,100,random,44,,100.0,4.47,95.53
+20260630_114327,100,random,45,,100.0,4.54,95.46
+20260630_114452,100,random,46,,100.0,4.52,95.48
