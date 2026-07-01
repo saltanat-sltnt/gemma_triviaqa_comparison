@@ -12,7 +12,7 @@ MAX_NEW_TOKENS = 32
 
 @st.cache_resource
 def load_local_gemma_model():
-    hf_token = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN"))
+    hf_token = os.getenv("HF_TOKEN")
 
     # print("Loading Gemma model locally on lab PC...")
 
